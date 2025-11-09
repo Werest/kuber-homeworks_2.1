@@ -134,6 +134,70 @@ kubectl logs -l app=shared-volume-app -c multitool -f
   - каждый шаг выполнения задания, начиная с шага 2.
 - Описания:
   - объяснение наблюдаемого поведения ресурсов в двух последних шагах.
+------
+```
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-pv
+spec:
+  capacity:
+    storage: 1Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /var/data
+-------------------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: local-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  volumeName: local-pv
+------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ['sh', '-c', 'while true; do echo "$(date) Hello from busybox" >> /mnt/data/log.txt; sleep 5; done']
+        volumeMounts:
+        - name: storage
+          mountPath: /mnt/data
+      - name: multitool
+        image: wbitt/network-multitool
+        command: ['sh', '-c', 'tail -f /dev/null']
+        volumeMounts:
+        - name: storage
+          mountPath: /mnt/data
+      volumes:
+      - name: storage
+        persistentVolumeClaim:
+          claimName: local-pvc
+```
+<img width="1357" height="223" alt="image" src="https://github.com/user-attachments/assets/fec961cb-cdcc-4a13-bda9-9d6eb665d400" />
+
+
+
 
 ------
 
