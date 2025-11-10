@@ -196,7 +196,27 @@ spec:
 ```
 <img width="1357" height="223" alt="image" src="https://github.com/user-attachments/assets/fec961cb-cdcc-4a13-bda9-9d6eb665d400" />
 
+Проверяю запись данных от busybox:
+```
+microk8s kubectl exec my-app-cfcb67778-z77ht -c busybox -- cat /mnt/data/log.txt
+microk8s kubectl exec my-app-cfcb67778-z77ht -c multitool -- cat /mnt/data/log.txt
+```
+<img width="1044" height="1281" alt="image" src="https://github.com/user-attachments/assets/7899ce85-5322-40eb-90c6-50c99390018c" />
 
+PV в статусе **Released**, но не удалился из-за политики **persistentVolumeReclaimPolicy: Retain**
+PV нельзя переиспользовать пока он в статусе **Released**
+<img width="686" height="488" alt="image" src="https://github.com/user-attachments/assets/465ccafa-490e-4ab3-9167-d70b34956639" />
+
+<img width="527" height="676" alt="image" src="https://github.com/user-attachments/assets/ad8bc2ea-44d6-446c-8c4a-42a25953097d" />
+<img width="578" height="684" alt="image" src="https://github.com/user-attachments/assets/a2819eb5-3839-4f82-9de3-b8587f53d622" />
+После удаления PV:
+- Файл /var/data/log.txt остается на диске ноды
+- Причина: hostPath использует локальную файловую систему ноды
+- Удаление PV в Kubernetes не удаляет физические данные на ноде
+
+- **Retain** - данные сохраняются после освобождения PV
+- **Delete** - том удаляется (для облачных провайдеров)
+- **Recycle** - устаревшая политика
 
 
 ------
