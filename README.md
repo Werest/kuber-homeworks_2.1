@@ -205,10 +205,12 @@ microk8s kubectl exec my-app-cfcb67778-z77ht -c multitool -- cat /mnt/data/log.t
 
 PV в статусе **Released**, но не удалился из-за политики **persistentVolumeReclaimPolicy: Retain**
 PV нельзя переиспользовать пока он в статусе **Released**
+
 <img width="686" height="488" alt="image" src="https://github.com/user-attachments/assets/465ccafa-490e-4ab3-9167-d70b34956639" />
 
 <img width="527" height="676" alt="image" src="https://github.com/user-attachments/assets/ad8bc2ea-44d6-446c-8c4a-42a25953097d" />
 <img width="578" height="684" alt="image" src="https://github.com/user-attachments/assets/a2819eb5-3839-4f82-9de3-b8587f53d622" />
+
 После удаления PV:
 - Файл /var/data/log.txt остается на диске ноды
 - Причина: hostPath использует локальную файловую систему ноды
@@ -217,7 +219,6 @@ PV нельзя переиспользовать пока он в статусе
 - **Retain** - данные сохраняются после освобождения PV
 - **Delete** - том удаляется (для облачных провайдеров)
 - **Recycle** - устаревшая политика
-
 
 ------
 
@@ -236,7 +237,104 @@ PV нельзя переиспользовать пока он в статусе
   - `sc.yaml`
 - Скриншоты:
   - каждый шаг выполнения задания, начиная с шага 2
+------
+```
+provisioner: kubernetes.io/aws-ebs    # AWS EBS
+provisioner: kubernetes.io/gce-pd     # Google Persistent Disk  
+provisioner: kubernetes.io/azure-disk # Azure Disk
+provisioner: kubernetes.io/no-provisioner  # Ручное создание
+```
+```
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: local-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: local-storage
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storageclass-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: storageclass-app
+  template:
+    metadata:
+      labels:
+        app: storageclass-app
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ['sh', '-c', 'while true; do echo "$(date) Data from busybox via StorageClass" >> /mnt/data/storageclass-log.txt; sleep 5; done']
+        volumeMounts:
+        - name: dynamic-storage
+          mountPath: /mnt/data
+      - name: multitool
+        image: wbitt/network-multitool
+        command: ['sh', '-c', 'tail -f /dev/null']
+        volumeMounts:
+        - name: dynamic-storage
+          mountPath: /mnt/data
+        env:
+        - name: HTTP_PORT
+          value: "8080"
+        - name: HTTPS_PORT
+          value: "8443"
+      volumes:
+      - name: dynamic-storage
+        persistentVolumeClaim:
+          claimName: local-pvc
+```
+<img width="1037" height="173" alt="image" src="https://github.com/user-attachments/assets/cbbae5db-a8c5-4983-86f4-9154d28a6000" />
+
+<img width="2106" height="144" alt="image" src="https://github.com/user-attachments/assets/3b556cf1-8f27-4266-9f5b-952101108a1d" />
+
+Как будто не хватает PV для связки:
+```
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-pv
+spec:
+  capacity:
+    storage: 1Gi
+  volumeMode: Filesystem
+  accessModes:
+  - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /var/data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - ynixserver
+```
+После создания PV, требуется время для перезапуска Pod - после перезапуска связки были найдены:
+
+<img width="1548" height="1060" alt="image" src="https://github.com/user-attachments/assets/3c6c5318-2432-4094-8de8-2341748fcb10" />
+
+------
 ## Шаблоны манифестов с учебными комментариями
 ### 1. Deployment (containers-data-exchange.yaml)
 ```yaml
